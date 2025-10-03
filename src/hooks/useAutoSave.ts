@@ -1,251 +1,241 @@
-// src/hooks/useAutoSave.ts
-import { useCallback, useEffect, useRef, useState } from 'react'
-import Dexie from 'dexie'
+'use client';
 
-interface PortfolioData {
-  id?: string
-  data: any
-  timestamp: number
-  version: string
-}
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Dexie, { Table } from 'dexie';
 
-class PortfolioDB extends Dexie {
-  portfolios!: Dexie.Table<PortfolioData, string>
+// A safe JSON-ish type if your data is plain objects.
+// If your data is a richer shape, just pass that as the generic T to the hook.
+type JSONValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JSONValue[]
+  | { [k: string]: JSONValue };
+
+// What we store in IndexedDB
+type StoredPortfolio<T> = {
+  id: string;           // e.g. "current"
+  data: T;
+  timestamp: number;
+  version: string;
+};
+
+// Dexie DB with a string primary key
+class PortfolioDB<T> extends Dexie {
+  public portfolios!: Table<StoredPortfolio<T>, string>;
 
   constructor() {
-    super('PortfolioDatabase')
+    super('PortfolioDatabase');
     this.version(1).stores({
-      portfolios: '++id, timestamp, version'
-    })
+      // string PK "id" (NOT auto-increment)
+      portfolios: 'id,timestamp,version',
+    });
   }
 }
 
-const db = new PortfolioDB()
+// Create a DB instance. We’ll narrow the generic at usage time.
+const db = new PortfolioDB<unknown>();
 
-interface AutoSaveOptions {
-  interval?: number // milliseconds
-  onSave?: (data: any) => void
-  onError?: (error: Error) => void
-  onOffline?: () => void
-  onOnline?: () => void
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+interface AutoSaveOptions<T> {
+  /** milliseconds; default 30000 */
+  interval?: number;
+  onSave?: (data: T) => void;
+  onError?: (error: Error) => void;
+  onOffline?: () => void;
+  onOnline?: () => void;
 }
 
 interface AutoSaveReturn {
-  saveNow: () => Promise<void>
-  lastSaveTime: Date | null
-  isSaving: boolean
-  isOnline: boolean
-  hasUnsavedChanges: boolean
-  saveStatus: 'idle' | 'saving' | 'saved' | 'error'
+  saveNow: () => Promise<void>;
+  lastSaveTime: Date | null;
+  isSaving: boolean;
+  isOnline: boolean;
+  hasUnsavedChanges: boolean;
+  saveStatus: SaveStatus;
 }
 
-export const useAutoSave = (
-  data: any,
-  options: AutoSaveOptions = {}
-): AutoSaveReturn => {
+export function useAutoSave<T extends JSONValue | Record<string, unknown>>(
+  data: T,
+  options: AutoSaveOptions<T> = {}
+): AutoSaveReturn {
   const {
-    interval = 30000, // 30 seconds
+    interval = 30_000,
     onSave,
     onError,
     onOffline,
-    onOnline
-  } = options
+    onOnline,
+  } = options;
 
-  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const lastDataRef = useRef<string>('')
-  const pendingSavesRef = useRef<any[]>([])
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDataRef = useRef<string>('');
+  const pendingSavesRef = useRef<Array<{ data: T; timestamp: number }>>([]);
 
   // Save to IndexedDB
-  const saveToLocal = useCallback(async (portfolioData: any) => {
+  const saveToLocal = useCallback(async (portfolioData: T): Promise<boolean> => {
     try {
-      await db.portfolios.put({
+      const table = (db as PortfolioDB<T>).table<StoredPortfolio<T>>('portfolios');
+      await table.put({
         id: 'current',
         data: portfolioData,
         timestamp: Date.now(),
-        version: '1.0.0'
-      })
-      return true
-    } catch (error) {
-      console.error('Local save failed:', error)
-      return false
+        version: '1.0.0',
+      });
+      return true;
+    } catch (err) {
+      console.error('Local save failed:', err);
+      return false;
     }
-  }, [])
+  }, []);
 
-  // Save to cloud (mock implementation - replace with your API)
-  const saveToCloud = useCallback(async (portfolioData: any) => {
+  // Save to cloud (replace with your API)
+  const saveToCloud = useCallback(async (portfolioData: T): Promise<unknown> => {
     try {
       const response = await fetch('/api/portfolio/save', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          data: portfolioData,
-          timestamp: Date.now()
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Cloud save failed')
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('Cloud save failed:', error)
-      throw error
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: portfolioData, timestamp: Date.now() }),
+      });
+      if (!response.ok) throw new Error('Cloud save failed');
+      return response.json();
+    } catch (err) {
+      console.error('Cloud save failed:', err);
+      throw err;
     }
-  }, [])
+  }, []);
 
   // Main save function
-  const saveNow = useCallback(async () => {
-    if (isSaving) return
+  const saveNow = useCallback(async (): Promise<void> => {
+    if (isSaving) return;
 
-    setIsSaving(true)
-    setSaveStatus('saving')
+    setIsSaving(true);
+    setSaveStatus('saving');
 
     try {
-      // Always save locally first
-      await saveToLocal(data)
+      // Always save locally
+      await saveToLocal(data);
 
-      // Try cloud save if online
+      // Attempt cloud
       if (isOnline) {
         try {
-          await saveToCloud(data)
-          // Clear pending saves on successful cloud save
-          pendingSavesRef.current = []
-        } catch (cloudError) {
-          // Add to pending saves if cloud fails
-          pendingSavesRef.current.push({
-            data: data,
-            timestamp: Date.now()
-          })
+          await saveToCloud(data);
+          pendingSavesRef.current = []; // clear queue on success
+        } catch {
+          pendingSavesRef.current.push({ data, timestamp: Date.now() });
         }
       } else {
-        // Add to pending saves when offline
-        pendingSavesRef.current.push({
-          data: data,
-          timestamp: Date.now()
-        })
+        pendingSavesRef.current.push({ data, timestamp: Date.now() });
       }
 
-      setLastSaveTime(new Date())
-      setHasUnsavedChanges(false)
-      setSaveStatus('saved')
-      onSave?.(data)
-
-    } catch (error) {
-      console.error('Save failed:', error)
-      setSaveStatus('error')
-      onError?.(error as Error)
+      setLastSaveTime(new Date());
+      setHasUnsavedChanges(false);
+      setSaveStatus('saved');
+      onSave?.(data);
+    } catch (err) {
+      console.error('Save failed:', err);
+      setSaveStatus('error');
+      onError?.(err as Error);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }, [data, isOnline, isSaving, saveToLocal, saveToCloud, onSave, onError])
+  }, [data, isOnline, isSaving, saveToLocal, saveToCloud, onSave, onError]);
 
-  // Sync pending saves when back online
+  // Sync queued saves when back online
   const syncPendingSaves = useCallback(async () => {
-    if (pendingSavesRef.current.length === 0 || !isOnline) return
-
+    if (pendingSavesRef.current.length === 0 || !isOnline) return;
     try {
-      for (const pendingSave of pendingSavesRef.current) {
-        await saveToCloud(pendingSave.data)
+      for (const pending of pendingSavesRef.current) {
+        await saveToCloud(pending.data);
       }
-      pendingSavesRef.current = []
-    } catch (error) {
-      console.error('Sync failed:', error)
+      pendingSavesRef.current = [];
+    } catch (err) {
+      console.error('Sync failed:', err);
     }
-  }, [isOnline, saveToCloud])
+  }, [isOnline, saveToCloud]);
 
-  // Check if data has changed
+  // Detect changes
   useEffect(() => {
-    const currentDataString = JSON.stringify(data)
-    if (lastDataRef.current !== currentDataString && lastDataRef.current !== '') {
-      setHasUnsavedChanges(true)
-      setSaveStatus('idle')
+    const current = JSON.stringify(data);
+    if (lastDataRef.current && lastDataRef.current !== current) {
+      setHasUnsavedChanges(true);
+      setSaveStatus('idle');
     }
-    lastDataRef.current = currentDataString
-  }, [data])
+    lastDataRef.current = current;
+  }, [data]);
 
   // Auto-save timer
   useEffect(() => {
-    if (hasUnsavedChanges) {
-      intervalRef.current = setTimeout(() => {
-        saveNow()
-      }, interval)
-    }
-
+    if (!hasUnsavedChanges) return;
+    intervalRef.current = setTimeout(() => { void saveNow(); }, interval);
     return () => {
-      if (intervalRef.current) {
-        clearTimeout(intervalRef.current)
-      }
-    }
-  }, [hasUnsavedChanges, interval, saveNow])
+      if (intervalRef.current) clearTimeout(intervalRef.current);
+    };
+  }, [hasUnsavedChanges, interval, saveNow]);
 
   // Online/offline listeners
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      onOnline?.()
-      syncPendingSaves()
+    const handleOnline = (): void => {
+      setIsOnline(true);
+      onOnline?.();
+      void syncPendingSaves();
+    };
+    const handleOffline = (): void => {
+      setIsOnline(false);
+      onOffline?.();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
     }
-
-    const handleOffline = () => {
-      setIsOnline(false)
-      onOffline?.()
-    }
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
     return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [onOnline, onOffline, syncPendingSaves])
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      }
+    };
+  }, [onOnline, onOffline, syncPendingSaves]);
 
-  // Save before page unload
+  // Save before unload
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent): void => {
       if (hasUnsavedChanges) {
-        e.preventDefault()
-        e.returnValue = 'You have unsaved changes'
-        // Quick save attempt
-        saveNow()
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes';
+        void saveNow();
       }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }
+    return;
+  }, [hasUnsavedChanges, saveNow]);
 
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges, saveNow])
-
-  // Load initial data
+  // Load initial timestamp
   useEffect(() => {
-    const loadInitialData = async () => {
+    const loadInitial = async (): Promise<void> => {
       try {
-        const localData = await db.portfolios.get('current')
-        if (localData) {
-          setLastSaveTime(new Date(localData.timestamp))
-        }
-      } catch (error) {
-        console.error('Failed to load initial data:', error)
+        const table = (db as PortfolioDB<T>).table<StoredPortfolio<T>>('portfolios');
+        const local = await table.get('current');
+        if (local) setLastSaveTime(new Date(local.timestamp));
+      } catch (err) {
+        console.error('Failed to load initial data:', err);
       }
-    }
+    };
+    void loadInitial();
+  }, []);
 
-    loadInitialData()
-  }, [])
-
-  return {
-    saveNow,
-    lastSaveTime,
-    isSaving,
-    isOnline,
-    hasUnsavedChanges,
-    saveStatus
-  }
+  return { saveNow, lastSaveTime, isSaving, isOnline, hasUnsavedChanges, saveStatus };
 }
