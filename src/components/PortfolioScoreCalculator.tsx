@@ -1,29 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-interface Project {
-  title: string;
-  description: string;
-  technologies: string[];
-  link?: string;
-}
-
-interface SkillBucket {
-  name: string;
-  skills: string[];
-}
-
-interface PortfolioContent {
-  projects?: Project[];
-  skills?: SkillBucket[];
-  contact?: boolean;
-}
-
-interface PortfolioScoreCalculatorProps {
-  content: PortfolioContent;
-  name: string;
-  role: string;
-  bio: string;
-}
+import type { PortfolioContent } from '@/types/portfolio';
 
 interface ScoreBreakdownItem {
   category: string;
@@ -33,11 +9,18 @@ interface ScoreBreakdownItem {
   color: string;
 }
 
-const PortfolioScoreCalculator: React.FC<PortfolioScoreCalculatorProps> = ({ 
-  content, 
-  name, 
-  role, 
-  bio 
+interface PortfolioScoreCalculatorProps {
+  content: PortfolioContent;
+  name: string;
+  role: string;
+  bio: string;
+}
+
+const PortfolioScoreCalculator: React.FC<PortfolioScoreCalculatorProps> = ({
+  content,
+  name,
+  role,
+  bio,
 }) => {
   const [score, setScore] = useState<number>(0);
   const [breakdown, setBreakdown] = useState<ScoreBreakdownItem[]>([]);
@@ -52,112 +35,117 @@ const PortfolioScoreCalculator: React.FC<PortfolioScoreCalculatorProps> = ({
       const nameScore = name.length >= 2 ? 1.5 : 0.8;
       totalScore += nameScore;
       scoreBreakdown.push({
-        category: "Professional Name",
+        category: 'Professional Name',
         score: nameScore,
         maxScore: 1.5,
-        feedback: name.length >= 2 ? "✅ Clear professional name" : "⚠️ Name could be more complete",
-        color: name.length >= 2 ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"
+        feedback: name.length >= 2 ? '✅ Clear professional name' : '⚠️ Name could be more complete',
+        color: name.length >= 2 ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400',
       });
     } else {
       scoreBreakdown.push({
-        category: "Professional Name",
+        category: 'Professional Name',
         score: 0,
         maxScore: 1.5,
-        feedback: "❌ Missing name",
-        color: "text-red-600 dark:text-red-400"
+        feedback: '❌ Missing name',
+        color: 'text-red-600 dark:text-red-400',
       });
     }
 
     // Role clarity (0-1.5 points)
     if (role?.length > 0) {
-      const roleScore = role.length >= 5 && role.toLowerCase().includes('engineer') ? 1.5 : 
-                      role.length >= 3 ? 1.2 : 0.7;
+      const roleScore =
+        role.length >= 5 && role.toLowerCase().includes('engineer') ? 1.5 :
+        role.length >= 3 ? 1.2 : 0.7;
       totalScore += roleScore;
       scoreBreakdown.push({
-        category: "Role Definition",
+        category: 'Role Definition',
         score: roleScore,
         maxScore: 1.5,
-        feedback: roleScore >= 1.5 ? "✅ Clear professional role" : 
-                 roleScore >= 1.0 ? "⚠️ Role could be more specific" : "❌ Vague role title",
-        color: roleScore >= 1.5 ? "text-green-600 dark:text-green-400" : 
-               roleScore >= 1.0 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
+        feedback:
+          roleScore >= 1.5 ? '✅ Clear professional role' :
+          roleScore >= 1.0 ? '⚠️ Role could be more specific' : '❌ Vague role title',
+        color:
+          roleScore >= 1.5 ? 'text-green-600 dark:text-green-400' :
+          roleScore >= 1.0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400',
       });
     } else {
       scoreBreakdown.push({
-        category: "Role Definition",
+        category: 'Role Definition',
         score: 0,
         maxScore: 1.5,
-        feedback: "❌ Missing role/title",
-        color: "text-red-600 dark:text-red-400"
+        feedback: '❌ Missing role/title',
+        color: 'text-red-600 dark:text-red-400',
       });
     }
 
     // Bio quality (0-2.5 points)
     if (bio?.length > 0) {
-      const bioScore = bio.length >= 100 ? 2.5 :
-                      bio.length >= 50 ? 2.0 :
-                      bio.length >= 20 ? 1.5 : 1.0;
+      const bioScore =
+        bio.length >= 100 ? 2.5 :
+        bio.length >= 50 ? 2.0 :
+        bio.length >= 20 ? 1.5 : 1.0;
       totalScore += bioScore;
       scoreBreakdown.push({
-        category: "Personal Bio",
+        category: 'Personal Bio',
         score: bioScore,
         maxScore: 2.5,
-        feedback: bioScore >= 2.5 ? "✅ Compelling personal story" :
-                 bioScore >= 2.0 ? "✅ Good bio length" :
-                 bioScore >= 1.5 ? "⚠️ Bio could be more detailed" : "❌ Bio too brief",
-        color: bioScore >= 2.0 ? "text-green-600 dark:text-green-400" : 
-               bioScore >= 1.5 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
+        feedback:
+          bioScore >= 2.5 ? '✅ Compelling personal story' :
+          bioScore >= 2.0 ? '✅ Good bio length' :
+          bioScore >= 1.5 ? '⚠️ Bio could be more detailed' : '❌ Bio too brief',
+        color:
+          bioScore >= 2.0 ? 'text-green-600 dark:text-green-400' :
+          bioScore >= 1.5 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400',
       });
     } else {
       scoreBreakdown.push({
-        category: "Personal Bio",
+        category: 'Personal Bio',
         score: 0,
         maxScore: 2.5,
-        feedback: "❌ Missing personal bio",
-        color: "text-red-600 dark:text-red-400"
+        feedback: '❌ Missing personal bio',
+        color: 'text-red-600 dark:text-red-400',
       });
     }
 
-    // Project quality (0-2.0 points)
-    const projectScore = content.projects?.length ? 
-                        (content.projects.length >= 3 ? 2.0 : 1.5) : 0;
+    // Project quality (0-2.0 points) — uses only count, not fields
+    const projectScore = content.projects?.length ? (content.projects.length >= 3 ? 2.0 : 1.5) : 0;
     totalScore += projectScore;
     scoreBreakdown.push({
-      category: "Project Showcase",
+      category: 'Project Showcase',
       score: projectScore,
       maxScore: 2.0,
-      feedback: projectScore >= 2.0 ? "✅ Strong project portfolio" :
-               projectScore >= 1.5 ? "✅ Good project examples" : "❌ Missing projects",
-      color: projectScore >= 1.5 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+      feedback:
+        projectScore >= 2.0 ? '✅ Strong project portfolio' :
+        projectScore >= 1.5 ? '✅ Good project examples' : '❌ Missing projects',
+      color: projectScore >= 1.5 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
     });
 
-    // Skills completeness (0-1.5 points)
-    const skillsScore = content.skills?.length ? 
-                       (content.skills.length >= 3 ? 1.5 : 1.0) : 0;
+    // Skills completeness (0-1.5 points) — uses only count, not fields
+    const skillsScore = content.skills?.length ? (content.skills.length >= 3 ? 1.5 : 1.0) : 0;
     totalScore += skillsScore;
     scoreBreakdown.push({
-      category: "Technical Skills",
+      category: 'Technical Skills',
       score: skillsScore,
       maxScore: 1.5,
-      feedback: skillsScore >= 1.5 ? "✅ Well-organized skillset" :
-               skillsScore >= 1.0 ? "✅ Good skill coverage" : "❌ Missing skills",
-      color: skillsScore >= 1.0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+      feedback:
+        skillsScore >= 1.5 ? '✅ Well-organized skillset' :
+        skillsScore >= 1.0 ? '✅ Good skill coverage' : '❌ Missing skills',
+      color: skillsScore >= 1.0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
     });
 
     // Contact information (0-1.0 points)
     const contactScore = content.contact ? 1.0 : 0;
     totalScore += contactScore;
     scoreBreakdown.push({
-      category: "Contact Info",
+      category: 'Contact Info',
       score: contactScore,
       maxScore: 1.0,
-      feedback: contactScore >= 1.0 ? "✅ Contact form available" : "❌ No contact method",
-      color: contactScore >= 1.0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+      feedback: contactScore >= 1.0 ? '✅ Contact method available' : '❌ No contact method',
+      color: contactScore >= 1.0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
     });
 
     return { totalScore: Math.min(totalScore, 10), breakdown: scoreBreakdown };
   };
-
   useEffect(() => {
     const result = calculateScore();
     setScore(result.totalScore);
