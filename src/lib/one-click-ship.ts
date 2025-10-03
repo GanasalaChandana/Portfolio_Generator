@@ -15,9 +15,14 @@ export interface ShipResult {
 }
 
 // Generate complete HTML for the portfolio
+// Clean generatePortfolioHTML function with working buttons
 export function generatePortfolioHTML(content: PortfolioContent): string {
   const theme = getTheme(content.theme);
   const themeCSS = generateThemeCSS(theme);
+  
+  // Generate contact link - using only the cta property that exists
+  let contactLink = '#contact';
+  let contactCTA = content.contact?.cta || 'Get in Touch';
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -48,6 +53,10 @@ export function generatePortfolioHTML(content: PortfolioContent): string {
       border: 1px solid rgba(var(--color-primary-rgb), 0.2);
       color: var(--color-primary);
     }
+
+    html {
+      scroll-behavior: smooth;
+    }
   </style>
 </head>
 <body class="theme-${theme.variant}">
@@ -62,11 +71,11 @@ export function generatePortfolioHTML(content: PortfolioContent): string {
           ${content.tagline}
         </p>
         <div class="flex gap-4 justify-center">
-          <button class="px-6 py-3 rounded-lg font-medium" style="background: var(--color-primary); color: var(--color-background)">
+          <button id="view-projects-btn" class="px-6 py-3 rounded-lg font-medium cursor-pointer" style="background: var(--color-primary); color: var(--color-background)">
             View Projects
           </button>
-          <button class="px-6 py-3 rounded-lg font-medium border" style="border-color: var(--color-primary); color: var(--color-primary)">
-            ${content.contact.cta}
+          <button id="contact-btn" class="px-6 py-3 rounded-lg font-medium border cursor-pointer" style="border-color: var(--color-primary); color: var(--color-primary);">
+            ${contactCTA}
           </button>
         </div>
       </section>
@@ -86,7 +95,7 @@ export function generatePortfolioHTML(content: PortfolioContent): string {
                 `).join('')}
               </ul>
               ${project.link ? `
-                <a href="${project.link}" target="_blank" class="inline-flex items-center gap-2 text-sm font-medium" style="color: var(--color-primary)">
+                <a href="${project.link}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-sm font-medium" style="color: var(--color-primary)">
                   View Project →
                 </a>
               ` : ''}
@@ -113,13 +122,13 @@ export function generatePortfolioHTML(content: PortfolioContent): string {
       </section>
 
       <!-- Contact Section -->
-      <section class="text-center space-y-6 py-12">
+      <section id="contact" class="text-center space-y-6 py-12">
         <h3 class="text-3xl font-bold" style="color: var(--color-text-primary)">Let's Connect</h3>
         <p class="text-lg" style="color: var(--color-text-secondary)">
           Ready to collaborate on your next project?
         </p>
-        <button class="px-8 py-4 rounded-lg font-medium text-lg" style="background: var(--color-primary); color: var(--color-background)">
-          ${content.contact.cta}
+        <button id="contact-btn-main" class="px-8 py-4 rounded-lg font-medium text-lg cursor-pointer" style="background: var(--color-primary); color: var(--color-background);">
+          ${contactCTA}
         </button>
       </section>
 
@@ -127,11 +136,36 @@ export function generatePortfolioHTML(content: PortfolioContent): string {
   </div>
 
   <script>
-    // Add smooth scrolling
-    document.addEventListener('click', function(e) {
-      if (e.target.textContent === 'View Projects') {
-        e.preventDefault();
-        document.getElementById('projects').scrollIntoView({ behavior: 'smooth' });
+    document.addEventListener('DOMContentLoaded', function() {
+      // View Projects button
+      var viewProjectsBtn = document.getElementById('view-projects-btn');
+      if (viewProjectsBtn) {
+        viewProjectsBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          var projectsSection = document.getElementById('projects');
+          if (projectsSection) {
+            projectsSection.scrollIntoView({ behavior: 'smooth' });
+          }
+        });
+      }
+      
+      // Contact buttons - scroll to contact section
+      var contactBtn = document.getElementById('contact-btn');
+      var contactBtnMain = document.getElementById('contact-btn-main');
+      
+      function scrollToContact() {
+        var contactSection = document.getElementById('contact');
+        if (contactSection) {
+          contactSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+      
+      if (contactBtn) {
+        contactBtn.addEventListener('click', scrollToContact);
+      }
+      
+      if (contactBtnMain) {
+        contactBtnMain.addEventListener('click', scrollToContact);
       }
     });
   </script>

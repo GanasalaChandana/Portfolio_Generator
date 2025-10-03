@@ -215,6 +215,7 @@ function localSynthesis(name: string, role: string, bio: string, theme: Portfoli
   return {
     name: name || 'Your Name',
     role: role || 'Software Engineer',
+    bio: bio || '',
     tagline: (bio?.length ? bio : `Building innovative ${role || 'software'} solutions`).slice(0, 90),
     projects: getCuratedProjects(role),
     skills: generateRoleSpecificSkills(role),

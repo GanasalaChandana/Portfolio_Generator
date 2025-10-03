@@ -3,6 +3,7 @@ import { PortfolioContent } from '@/types/portfolio';
 export const SEED: PortfolioContent = {
   name: 'Avery Kim',
   role: 'Full-Stack Engineer',
+  bio: '',
   tagline: 'Shipping fast, learning faster.',
   projects: [
     {

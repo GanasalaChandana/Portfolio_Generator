@@ -1,4 +1,4 @@
-// types/portfolio.ts - Complete type definitions
+// types/portfolio.ts - Complete type definitions with resume support
 
 // Core portfolio data types
 export interface Project {
@@ -14,14 +14,87 @@ export interface SkillBucket {
   items: string[];
 }
 
+// Resume configuration
+export interface ResumeConfig {
+  enabled: boolean;
+  filename: string;
+  url?: string; // External URL to resume file
+  data?: ResumeData; // Inline resume data for PDF generation
+  downloadText?: string;
+  viewText?: string;
+}
+
+// Structured resume data for PDF generation
+export interface ResumeData {
+  personalInfo: {
+    name: string;
+    email: string;
+    phone?: string;
+    location?: string;
+    website?: string;
+    linkedin?: string;
+    github?: string;
+  };
+  summary: string;
+  experience: WorkExperience[];
+  education: Education[];
+  skills: SkillCategory[];
+  projects?: ResumeProject[];
+  certifications?: Certification[];
+}
+
+export interface WorkExperience {
+  company: string;
+  position: string;
+  location?: string;
+  startDate: string;
+  endDate: string | 'Present';
+  description: string[];
+  technologies?: string[];
+}
+
+export interface Education {
+  institution: string;
+  degree: string;
+  field?: string;
+  location?: string;
+  startDate?: string;
+  endDate: string;
+  gpa?: string;
+  honors?: string[];
+}
+
+export interface SkillCategory {
+  category: string;
+  skills: string[];
+}
+
+export interface ResumeProject {
+  name: string;
+  description: string;
+  technologies: string[];
+  link?: string;
+}
+
+export interface Certification {
+  name: string;
+  issuer: string;
+  date: string;
+  expiryDate?: string;
+  credentialId?: string;
+  link?: string;
+}
+
 export interface Contact {
   cta: string;
+  note?: string;
+  resume?: ResumeConfig;
 }
 
 export interface PortfolioContent {
   name: string;
   role: string;
-  bio : string;
+  bio: string;
   tagline: string;
   projects: Project[];
   skills: SkillBucket[];
@@ -174,6 +247,110 @@ export const PORTFOLIO_THEMES: Record<ThemeVariant, PortfolioTheme> = {
     }
   }
 };
+
+// Resume utilities
+export class ResumeGenerator {
+  static generatePDF(resumeData: ResumeData, theme: PortfolioTheme): Blob {
+    // This would integrate with a PDF generation library like jsPDF
+    const content = this.generateResumeHTML(resumeData, theme);
+    // Convert HTML to PDF (implementation would depend on chosen library)
+    return new Blob([content], { type: 'application/pdf' });
+  }
+
+  static generateResumeHTML(resumeData: ResumeData, theme: PortfolioTheme): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Resume - ${resumeData.personalInfo.name}</title>
+          <style>
+            ${generateThemeCSS(theme)}
+            body { font-size: 12px; line-height: 1.4; margin: 0; padding: 20px; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .section { margin-bottom: 15px; }
+            .section-title { font-size: 14px; font-weight: bold; border-bottom: 1px solid var(--color-primary); margin-bottom: 8px; }
+            .experience-item, .education-item { margin-bottom: 12px; }
+            .item-header { font-weight: bold; }
+            .item-subheader { color: var(--color-text-secondary); font-size: 11px; }
+            .skills-grid { display: flex; flex-wrap: wrap; gap: 15px; }
+            .skill-category { flex: 1; min-width: 200px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${resumeData.personalInfo.name}</h1>
+            <div>${resumeData.personalInfo.email} | ${resumeData.personalInfo.phone || ''}</div>
+            <div>${resumeData.personalInfo.location || ''} | ${resumeData.personalInfo.website || ''}</div>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">PROFESSIONAL SUMMARY</div>
+            <p>${resumeData.summary}</p>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">EXPERIENCE</div>
+            ${resumeData.experience.map(exp => `
+              <div class="experience-item">
+                <div class="item-header">${exp.position} | ${exp.company}</div>
+                <div class="item-subheader">${exp.startDate} - ${exp.endDate} | ${exp.location || ''}</div>
+                <ul>
+                  ${exp.description.map(desc => `<li>${desc}</li>`).join('')}
+                </ul>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div class="section">
+            <div class="section-title">EDUCATION</div>
+            ${resumeData.education.map(edu => `
+              <div class="education-item">
+                <div class="item-header">${edu.degree}${edu.field ? ` in ${edu.field}` : ''}</div>
+                <div class="item-subheader">${edu.institution} | ${edu.endDate}${edu.gpa ? ` | GPA: ${edu.gpa}` : ''}</div>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div class="section">
+            <div class="section-title">TECHNICAL SKILLS</div>
+            <div class="skills-grid">
+              ${resumeData.skills.map(skillCat => `
+                <div class="skill-category">
+                  <strong>${skillCat.category}:</strong> ${skillCat.skills.join(', ')}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  }
+
+  static downloadResume(resumeConfig: ResumeConfig, resumeData?: ResumeData, theme?: PortfolioTheme): void {
+    if (resumeConfig.url) {
+      // Download from external URL
+      const link = document.createElement('a');
+      link.href = resumeConfig.url;
+      link.download = resumeConfig.filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (resumeData && theme) {
+      // Generate and download PDF
+      const pdfBlob = this.generatePDF(resumeData, theme);
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = resumeConfig.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  }
+}
 
 // Theme utilities
 export function getTheme(variant: ThemeVariant): PortfolioTheme {
